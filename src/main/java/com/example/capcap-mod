@@ -1,0 +1,52 @@
+package net.fabricmc.example;
+
+import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.util.Hand;
+import org.lwjgl.glfw.GLFW;
+
+public class ExampleMod implements ModInitializer {
+    // Назва всюди CapCap для прихованості
+    public static boolean capCapEnabled = false;
+    private static boolean keyWasPressed = false;
+
+    @Override
+    public void onInitialize() {
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.player == null || client.world == null) return;
+
+            // Логіка клавіші U (CapCap активація)
+            boolean isKeyPressed = GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_U) == GLFW.GLFW_PRESS;
+            if (isKeyPressed && !keyWasPressed) {
+                capCapEnabled = !capCapEnabled;
+                client.player.sendMessage(net.minecraft.text.Text.of("§b[CapCap] §f" + (capCapEnabled ? "§aEnabled" : "§cDisabled")), true);
+            }
+            keyWasPressed = isKeyPressed;
+
+            if (capCapEnabled) {
+                runCapCapLogic(client);
+            }
+        });
+    }
+
+    private void runCapCapLogic(MinecraftClient mc) {
+        double range = 3.8; // Оптимальна дистанція для обходу античиту
+
+        // Пошук цілі
+        mc.world.getEntitiesByClass(LivingEntity.class, 
+            mc.player.getBoundingBox().expand(range),
+            entity -> entity != mc.player && entity.isAlive() && mc.player.canSee(entity)) // canSee = не крізь стіни
+            .stream()
+            .filter(e -> mc.player.fallDistance > 0.0f && !mc.player.isOnGround() && !mc.player.isTouchingWater()) // Тільки КРИТИ
+            .findFirst()
+            .ifPresent(target -> {
+                // Перевірка готовності удару (Cooldown 1.9+)
+                if (mc.player.getAttackCooldownProgress(0.5f) >= 1.0f) {
+                    mc.interactionManager.attackEntity(mc.player, target);
+                    mc.player.swingHand(Hand.MAIN_HAND);
+                }
+            });
+    }
+}
